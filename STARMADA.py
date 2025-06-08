@@ -104,44 +104,62 @@ for i in range(1, len(Fleetlist) - 1) :
 print()
 print(Fleetlist)
 
-#from pandas import options, read_excel
-#options.display.max_colwidth = None
 
 
-from csv import reader
+
+
 
 # 파일 위치 찾기
-from os import path, makedirs, startfile
+from os import path, makedirs
 path = path.realpath(__file__)
 path = path[:path.rfind("\\")]
-# path = path[:path.rfind("\\")] # exe에서는 internal 폴더가 만들어지기 때문
+path = path[:path.rfind("\\")] # exe에서는 internal 폴더가 만들어지기 때문
 path = path.replace("\\","/")
-# path = "C:/STARMADA_dist"
 
-# filename = f"{path}/resources/STARMADA Link.xlsx"
+
 main_link_filename = f"{path}/resources/Card Link.csv"
 upgrade_link_filename = f"{path}/resources/Upgrade Link.csv"
 
 
-def read_csv_to_list(filepath):
-    data = []
-    try:
-        with open(filepath, 'r', newline='', encoding='utf-8') as csvfile:
-            csv_reader = reader(csvfile)
-            for row in csv_reader:
+from csv import reader  
+def read_csv_to_dict(filename):
+    # Read the CSV file content
+    with open(filename, 'r', encoding='utf-8') as file:
+        readdata = reader(file)
+        data = []
+        for row in readdata:
+            # Skip blank rows
+            if any(cell.strip() for cell in row):
                 data.append(row)
-        print(f"Successfully loaded data from: {filepath}")
-        return data
-    except FileNotFoundError:
-        print(f"Error: File not found at '{filepath}'. Please ensure the file exists.")
-        return None
-    except Exception as e:
-        print(f"An error occurred while reading '{filepath}': {e}")
-        return None
+
+    # Get the header row
+    header = [h.strip() for h in data[0]] # Strip whitespace from header elements
+
+    # Find the indices of 'Eng' and 'Kor' columns
+    try:
+        eng_col_index = header.index('Eng')
+        kor_col_index = header.index('Kor')
+    except ValueError as e:
+        print(f"Error: {e}. 'Eng' or 'Kor' column not found in header. Please check the CSV file.")
+        exit()
+
+    # Create a dictionary to store the mapping
+    eng_kor_map = {}
+    for row in data[1:]:  # Skip the header row
+        if row[eng_col_index].strip():  # Ensure the Eng column is not blank
+            eng_kor_map[row[eng_col_index].strip()] = row[kor_col_index].strip()
+    return eng_kor_map
+
+mainmap = read_csv_to_dict(main_link_filename)
+upgrademap = read_csv_to_dict(upgrade_link_filename)
 
 
-MainLink = read_csv_to_list(main_link_filename)
-UpgradeLink = read_csv_to_list(upgrade_link_filename)
+# Function to find the Kor value for a given Eng string
+def maindata(eng_string):
+    return mainmap.get(eng_string.strip())
+def upgradedata(eng_string):
+    return upgrademap.get(eng_string.strip())
+
 
 
 from PIL import Image
@@ -156,32 +174,32 @@ for i in range(len(Fleetlist)) :
 try : # 엑셀 링크 오류 시 경고문 프린트
     for i in range(len(Fleetlist[0])) :
         currentIMG = str(Fleetlist[0][i])
-        link = MainLink["Kor"][MainLink["Eng"] == str(Fleetlist[0][i])]
-        link = path + str(link)[str(link).find("/") : str(link).find("Name: Kor") - 1]
+        link = maindata(str(Fleetlist[0][i]))
+        link = path + str(link)
         print(link)
         ImageList[0].append(Image.open(link))
 
     for i in range(1, len(Fleetlist) - 1) :
         currentIMG = str(Fleetlist[i][0])
-        link = MainLink["Kor"][MainLink["Eng"] == str(Fleetlist[i][0])]
-        link = path + str(link)[str(link).find("/") : str(link).find("Name: Kor") - 1]
+        link = maindata(str(Fleetlist[i][0]))
+        link = path + str(link)
         print(link)
         ImageList[i].append(Image.open(link))
 
         for j in range(1, len(Fleetlist[i])) :
             currentIMG = str(Fleetlist[i][j])
-            link = UpgradeLink["Kor"][UpgradeLink["Eng"] == str(Fleetlist[i][j])]
-            link = path + str(link)[str(link).find("/") : str(link).find("Name: Kor") - 1]
+            link = upgradedata(str(Fleetlist[i][j]))
+            link = path + str(link)
             print(link)
             ImageList[i].append(Image.open(link))
 
     for i in range(len(Fleetlist[len(Fleetlist) - 1])) :
         currentIMG = str(Fleetlist[len(Fleetlist) - 1][i])
-        link = MainLink["Kor"][MainLink["Eng"] == str(Fleetlist[len(Fleetlist) - 1][i])]
-        link = path + str(link)[str(link).find("/") : str(link).find("Name: Kor") - 1]
+        link = maindata(str(Fleetlist[len(Fleetlist) - 1][i]))
+        link = path + str(link)
         print(link)
         ImageList[len(ImageList) - 1].append(Image.open(link))
-except PermissionError :
+except PermissionError or FileNotFoundError :
     print(f"\"{currentIMG}\" 카드를 찾을 수 없습니다. \"{currentIMG}\"에 오타가 있거나, resources 폴더의 STARMADA Link 엑셀 파일에서 \"{currentIMG}\" 카드의 영문 또는 한글 이름 및 경로를 확인해 수정해주세요!")
     from time import sleep
     sleep(10)
@@ -352,7 +370,10 @@ if SquadronCount > 0 :
     print("Squadron saved")
 
 output[0].save(FileName + "/@" + Name + ".pdf",quality=100, save_all=True, append_images=output[1:])
+from os import startfile
 startfile(FileName)
 
-# 콘솔에 pyinstaller -i "C:\STARMADA\ico\STARMADA.ico" "C:\STARMADA\STARMADA_dist\STARMADA.py"  --noconfirm 이렇게 입력하면 된다
+
+# 파이썬에서 실행시 "path = path[:path.rfind("\\")] # exe에서는 internal 폴더가 만들어지기 때문" 주석처리하고 실행
+# exe 변환할 때는 다시 주석해제
 # pyinstaller -i "C:\STARMADA\ico\STARMADA.ico" "C:\STARMADA\STARMADA_dist\STARMADA.py"  --noconfirm --clean --upx-dir="C:\Users\tanti\Desktop\upx-5.0.1-win64"
